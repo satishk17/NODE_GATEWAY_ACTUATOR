@@ -2,11 +2,11 @@
 This repository contains firmware and configuration for a complete FreeRTOS-based IoT system implemented on ESP32 microcontrollers. The system includes a Gateway, Sensor Nodes, and Actuator Nodes communicating via LoRa, MQTT, RS-485, ESP_NOW and Wi-Fi. Designed for scalability and real-time responsiveness, it is extendable to BLE, CAN, RS-232, and Matter/Thread protocols.
 
 # System Overview
--This project demonstrates a real-world edge-to-cloud IoT architecture:
--Sensor Nodes collect environmental data (temperature, pressure, presence, light,humidity).
--Data is transmitted wirelessly (via LoRa/ESP-NOW/RS-485) to a central Gateway.
--The Gateway parses, logs, displays, and forwards the data to a cloud MQTT broker.
--The system receives remote commands to control Actuator Nodes via MQTT.
+- This project demonstrates a real-world edge-to-cloud IoT architecture:
+- Sensor Nodes collect environmental data (temperature, pressure, presence, light,humidity).
+- Data is transmitted wirelessly (via LoRa/ESP-NOW/RS-485) to a central Gateway.
+- The Gateway parses, logs, displays, and forwards the data to a cloud MQTT broker.
+- The system receives remote commands to control Actuator Nodes via MQTT.
 
 All devices run under FreeRTOS, leveraging the built-in multitasking support on ESP32 platforms to handle concurrent tasks such as communication, sensor reading, display updates, and actuation.
 
