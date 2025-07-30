@@ -108,34 +108,8 @@ git clone https://github.com/your-username/gateway-node.git
 Open in Arduino IDE.
 
 Select board: ESP32-S3 or ESP32-C6.
-
 Configure:
-
-Wi-Fi credentials
-
-MQTT broker IP
-
-LoRa SPI pins
-
-Upload.
-
-Sensor Node
-Open sensor_node.ino.
-
-Connect BMP280 and OLED to I²C pins.
-
-Configure LoRa/RS-485/ESP-NOW settings.
-
-Upload to ESP32-S3.
-
-Actuator Node
-Open actuator_node.ino.
-
-Configure GPIO/RS-485 control pins.
-
-Define command parsing logic.
-
-Upload to ESP32.
+Check pin numbers and wifi credentials
 
 ## Code Structure
 
