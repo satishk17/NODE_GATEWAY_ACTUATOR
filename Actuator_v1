@@ -1,0 +1,286 @@
+==================================================================== Actuator-1 ============================================================================================
+// It use the esp now to communicate via gateway to control the realy.
+
+
+#include <esp_now.h>
+#include <WiFi.h>
+#include "Freenove_WS2812_Lib_for_ESP32.h"
+
+// === Relay Pin Definitions ===
+#define RELAY1 18
+#define RELAY2 17
+#define RELAY3 16
+#define RELAY4 15
+#define RELAY5 7
+#define RELAY6 6
+#define RELAY7 5
+#define RELAY8 4
+
+// === NeoPixel LED Configuration ===
+#define LEDS_COUNT 1
+#define LEDS_PIN 39
+#define CHANNEL 0
+
+// Initialize NeoPixel strip
+Freenove_ESP32_WS2812 strip = Freenove_ESP32_WS2812(LEDS_COUNT, LEDS_PIN, CHANNEL, TYPE_GRB);
+
+// === Data Structure for Temperature from Sender ===
+typedef struct {
+  float temperature;
+} TempData;
+
+TempData incomingData;  // Variable to hold received data
+
+// === Function to turn off all relays ===
+void clearAllRelays() {
+  digitalWrite(RELAY1, LOW);
+  digitalWrite(RELAY2, LOW);
+  digitalWrite(RELAY3, LOW);
+  digitalWrite(RELAY4, LOW);
+  digitalWrite(RELAY5, LOW);
+  digitalWrite(RELAY6, LOW);
+  digitalWrite(RELAY7, LOW);
+  digitalWrite(RELAY8, LOW);
+}
+
+// === ESP-NOW Callback Function ===
+void OnDataRecv(const esp_now_recv_info_t *recvInfo, const uint8_t *incomingDataBytes, int len) {
+  // Copy received bytes into our TempData structure
+  memcpy(&incomingData, incomingDataBytes, sizeof(incomingData));
+  float temp = incomingData.temperature;
+
+  // Print the sender's MAC address
+  char macStr[18];
+  snprintf(macStr, sizeof(macStr), "%02X:%02X:%02X:%02X:%02X:%02X",
+           recvInfo->src_addr[0], recvInfo->src_addr[1], recvInfo->src_addr[2],
+           recvInfo->src_addr[3], recvInfo->src_addr[4], recvInfo->src_addr[5]);
+
+  Serial.print("Received from: ");
+  Serial.println(macStr);
+  Serial.printf("Temperature: %.2f °C\n", temp);
+
+  // Reset all relays before deciding which one to turn on
+  clearAllRelays();
+
+  // === Relay Logic Based on Temperature Ranges ===
+  if (temp < 22.0) {
+    digitalWrite(RELAY1, HIGH);
+    Serial.println("Temp < 22°C → RELAY1 ON");
+  } else if (temp >= 22 && temp < 23) {
+    digitalWrite(RELAY2, HIGH);
+  } else if (temp >= 23 && temp < 24) {
+    digitalWrite(RELAY3, HIGH);
+  } else if (temp >= 24 && temp < 25) {
+    digitalWrite(RELAY4, HIGH);
+  } else if (temp >= 25 && temp < 26) {
+    digitalWrite(RELAY5, HIGH);
+  } else if (temp >= 26 && temp < 27) {
+    digitalWrite(RELAY6, HIGH);
+  } else if (temp >= 27 && temp <= 30) {
+    digitalWrite(RELAY7, HIGH);
+  } else if (temp > 30.0) {
+    digitalWrite(RELAY8, HIGH);
+    Serial.println("Temp > 30°C → RELAY8 ON");
+  } else {
+    Serial.println("No matching temperature range.");
+  }
+
+  // === Optional: Blink NeoPixel Green once ===
+  // Uncomment below to blink on each message
+  /*
+  strip.setPixelColor(0, strip.Color(0, 255, 0));  // Green
+  strip.show();
+  delay(100);
+  strip.setPixelColor(0, 0);  // Turn off
+  strip.show();
+  */
+}
+
+void setup() {
+  Serial.begin(115200);  // Start serial communication
+
+  // === Initialize NeoPixel Strip ===
+  strip.begin();
+  strip.setBrightness(150);  // Optional: brightness 0–255
+
+  // === Set Relay Pins as Output and Turn Them Off ===
+  pinMode(RELAY1, OUTPUT);
+  pinMode(RELAY2, OUTPUT);
+  pinMode(RELAY3, OUTPUT);
+  pinMode(RELAY4, OUTPUT);
+  pinMode(RELAY5, OUTPUT);
+  pinMode(RELAY6, OUTPUT);
+  pinMode(RELAY7, OUTPUT);
+  pinMode(RELAY8, OUTPUT);
+  clearAllRelays();
+
+  // === Initialize Wi-Fi in Station Mode (required for ESP-NOW) ===
+  WiFi.mode(WIFI_STA);
+
+  // === Initialize ESP-NOW Communication ===
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("❌ Error initializing ESP-NOW");
+    return;
+  }
+
+  // Register the data receive callback
+  esp_now_register_recv_cb(OnDataRecv);
+
+  Serial.println("✅ ESP-NOW Receiver Ready...");
+}
+
+void loop() {
+  // === Blink LED every second to indicate system is alive ===
+  strip.setLedColorData(0, 0, 255, 0);  // Green ON
+  strip.show();
+  delay(1000);
+
+  strip.setLedColorData(0, 0, 0, 0);   // OFF
+  strip.show();
+  delay(1000);
+}
+
+
+==================================================================== Actuator-1 ============================================================================================
+// It use the RS-485  to communicate via gateway to control the realy.
+
+#include <WiFi.h>
+#include "Freenove_WS2812_Lib_for_ESP32.h"
+
+// ====== RS-485 Serial Communication Pins ======
+#define RXD2 2           // Receive pin for RS-485 (ESP32 side)
+#define TXD2 1           // Transmit pin for RS-485 (ESP32 side)
+#define DE_RE_PIN 42     // Driver Enable & Receiver Enable pin (controls RS-485 transceiver direction)
+
+// ====== Relay Output Pins ======
+#define RELAY1 18
+#define RELAY2 17
+#define RELAY3 16
+#define RELAY4 15
+#define RELAY5 7
+#define RELAY6 6
+#define RELAY7 5
+#define RELAY8 4
+
+// ====== NeoPixel LED Configuration ======
+#define LEDS_COUNT 1     // Number of LEDs in the strip
+#define LEDS_PIN 39      // GPIO pin connected to NeoPixel data line
+#define CHANNEL 0        // Channel (used by Freenove library)
+
+// Initialize NeoPixel object
+Freenove_ESP32_WS2812 strip = Freenove_ESP32_WS2812(LEDS_COUNT, LEDS_PIN, CHANNEL, TYPE_GRB);
+
+// ====== Helper Function: Turn Off All Relays ======
+void clearAllRelays() {
+  digitalWrite(RELAY1, LOW);
+  digitalWrite(RELAY2, LOW);
+  digitalWrite(RELAY3, LOW);
+  digitalWrite(RELAY4, LOW);
+  digitalWrite(RELAY5, LOW);
+  digitalWrite(RELAY6, LOW);
+  digitalWrite(RELAY7, LOW);
+  digitalWrite(RELAY8, LOW);
+}
+
+// ====== Relay Control Based on Lux Value ======
+void handleLuxValue(int lux) {
+  clearAllRelays();  // Reset all relays before applying logic
+
+  // Map lux ranges to specific relays
+  if (lux < 100) {
+    digitalWrite(RELAY1, HIGH);
+    Serial.println("Lux < 100 → RELAY1 ON");
+  } else if (lux >= 100 && lux < 200) {
+    digitalWrite(RELAY2, HIGH);
+    Serial.println("100 ≤ Lux < 200 → RELAY2 ON");
+  } else if (lux >= 200 && lux < 300) {
+    digitalWrite(RELAY3, HIGH);
+    Serial.println("200 ≤ Lux < 300 → RELAY3 ON");
+  } else if (lux >= 300 && lux < 400) {
+    digitalWrite(RELAY4, HIGH);
+    Serial.println("300 ≤ Lux < 400 → RELAY4 ON");
+  } else if (lux >= 400 && lux < 500) {
+    digitalWrite(RELAY5, HIGH);
+    Serial.println("400 ≤ Lux < 500 → RELAY5 ON");
+  } else if (lux >= 500 && lux < 600) {
+    digitalWrite(RELAY6, HIGH);
+    Serial.println("500 ≤ Lux < 600 → RELAY6 ON");
+  } else if (lux >= 600 && lux < 700) {
+    digitalWrite(RELAY7, HIGH);
+    Serial.println("600 ≤ Lux < 700 → RELAY7 ON");
+  } else if (lux >= 700) {
+    digitalWrite(RELAY8, HIGH);
+    Serial.println("Lux ≥ 700 → RELAY8 ON");
+  }
+
+  // Flash NeoPixel green as visual feedback
+  strip.setLedColorData(0, 0, 255, 0);  // Green ON
+  strip.show();
+  delay(200);
+  strip.setLedColorData(0, 0, 0, 0);    // LED OFF
+  strip.show();
+}
+
+// ====== Initialization ======
+void setup() {
+  Serial.begin(115200);  // Serial monitor
+  Serial2.begin(9600, SERIAL_8N1, RXD2, TXD2);  // RS-485 communication
+
+  // Configure RS-485 transceiver direction pin (always receive mode here)
+  pinMode(DE_RE_PIN, OUTPUT);
+  digitalWrite(DE_RE_PIN, LOW);  // LOW = receive mode
+
+  // Initialize NeoPixel LED
+  strip.begin();
+  strip.setBrightness(150);  // Brightness level (0–255)
+
+  // Configure all relay GPIOs as outputs
+  pinMode(RELAY1, OUTPUT);
+  pinMode(RELAY2, OUTPUT);
+  pinMode(RELAY3, OUTPUT);
+  pinMode(RELAY4, OUTPUT);
+  pinMode(RELAY5, OUTPUT);
+  pinMode(RELAY6, OUTPUT);
+  pinMode(RELAY7, OUTPUT);
+  pinMode(RELAY8, OUTPUT);
+  clearAllRelays();  // Ensure all relays are OFF
+
+  Serial.println("RS-485 Lux Receiver Ready...");
+}
+
+// ====== Main Loop: Process Incoming RS-485 Messages ======
+void loop() {
+  static String inputString = "";  // Buffer to accumulate characters from RS-485
+
+  // Read all available characters from RS-485
+  while (Serial2.available()) {
+    char c = Serial2.read();
+
+    if (c == '\n') {
+      // End of message reached
+      inputString.trim();  // Remove any whitespace or '\r'
+
+      // Parse only if message starts with "Lux:"
+      if (inputString.startsWith("Lux:")) {
+        int separatorIndex = inputString.indexOf(':');
+        if (separatorIndex != -1) {
+          String luxStr = inputString.substring(separatorIndex + 1);
+          luxStr.trim();  // Clean up any extra whitespace
+          int lux = luxStr.toInt();  // Convert to integer
+
+          Serial.print("Received Lux: ");
+          Serial.println(lux);
+
+          // Apply lux-based relay logic
+          handleLuxValue(lux);
+        }
+      } else {
+        Serial.println("Invalid RS-485 message.");
+      }
+
+      inputString = ""; // Reset buffer for next message
+    } else {
+      inputString += c;  // Accumulate characters
+    }
+  }
+}
