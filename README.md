@@ -12,16 +12,16 @@ All devices run under FreeRTOS, leveraging the built-in multitasking support on 
 
 # Key Features
   ->  Gateway Node (ESP32-S3 / ESP32-C6)
-      Receives LoRa packets from Sensor Nodes.
-      Publishes JSON data to MQTT broker over Wi-Fi.
-      Controls NeoPixel or toggles sensors via MQTT command.
-      UART output for real-time monitoring/logging.
-      Interfaces with Actuators via RS-485 or GPIO.
-      Subscribes to MQTT topics and routes control commands.
-      Fully multi-threaded using FreeRTOS tasks for:
-      LoRa reception
-      MQTT publish/subscribe
-      RS-485 interaction
+  - Receives LoRa packets from Sensor Nodes.
+  - Publishes JSON data to MQTT broker over Wi-Fi.
+  - Controls NeoPixel or toggles sensors via MQTT command.
+  - UART output for real-time monitoring/logging.
+  - Interfaces with Actuators via RS-485 or GPIO.
+  - Subscribes to MQTT topics and routes control commands.
+  - Fully multi-threaded using FreeRTOS tasks for:
+  - LoRa reception
+  - MQTT publish/subscribe
+  - RS-485 interaction
 
  ->  Sensor Node (ESP32-S3)
      Reads data from:
