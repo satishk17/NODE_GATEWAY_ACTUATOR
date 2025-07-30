@@ -48,12 +48,12 @@ LoRa/RS-485 communication
   - Motors
   - Lights
 
-# => 🧠 How It Works
+# =>  How It Works
 Gateway Node:
-Receives LoRa packets.
-Parses and logs over UART.
-Publishes data to cloud via MQTT.
-Listens for MQTT commands and dispatches to actuators (via RS-485 or GPIO).
+ Receives LoRa packets.
+ Parses and logs over UART.
+ Publishes data to cloud via MQTT.
+ Listens for MQTT commands and dispatches to actuators (via RS-485 or GPIO).
 
 Sensor Node:
 Periodically reads sensors: BMP280, presence sensor, lux/RGB.
