@@ -67,18 +67,18 @@ Parses JSON payload.
 Triggers GPIO or RS-485-based actions.
 
 #  Getting Started
-📦 Prerequisites
-ESP32 / ESP32-S3 Boards
-SX127x LoRa Modules
-BMP280 Sensor ( altitude and pressure [hpa])
-HTU Sensor ( temperature and humidity )
-BH1750 Sensor ( lightmeter sensor [lux])
-TCS34725 Sensor ( rgb color sensor )
-Presence Sensor HLK-LD2410 ( human body motion [m])
-I²C OLED Display (SSD1306 or SH1106)
-RS-485 Transceivers (e.g., MAX485)
-MQTT Broker (e.g., Mosquitto, AWS IoT, ThingsBoard)
-Presence Sensor (e.g., PIR or IR)
+Prerequisites
+- ESP32 / ESP32-S3 Boards
+- SX127x LoRa Modules
+- BMP280 Sensor ( altitude and pressure [hpa])
+- HTU Sensor ( temperature and humidity )
+- BH1750 Sensor ( lightmeter sensor [lux])
+- TCS34725 Sensor ( rgb color sensor )
+- Presence Sensor HLK-LD2410 ( human body motion [m])
+- I²C OLED Display (SSD1306 or SH1106)
+- RS-485 Transceivers (e.g., MAX485)
+- MQTT Broker (e.g., Mosquitto, AWS IoT, ThingsBoard)
+- Presence Sensor (e.g., PIR or IR)
 
 # 📥 Dependencies
 Install these Arduino libraries via Library Manager:
