@@ -123,7 +123,8 @@ gateway-node/
 ├── uart_logger.cpp/h
 ├── neopixel_control.cpp/h
 └── config.h
-🧩 Future Expansion (Optional)
+
+# 🧩 Future Expansion (Optional)
 ✅ BLE provisioning for initial Wi-Fi setup.
 
 ✅ CAN protocol integration for industrial data.
