@@ -1,59 +1,162 @@
-# 🌐 Gateway Node for Multi-Protocol IoT System
-This repository contains a C++/Arduino-based application that acts as a Gateway Node in a multi-protocol IoT system. It runs on the ESP32-S3 and demonstrates real-time sensor data acquisition and communication using a combination of:
+# IoT Gateway, Sensor Node, and Actuator System
+This repository contains firmware and configuration for an IoT system involving a Gateway, Sensor Node, and Actuator Node using LoRa, MQTT, RS-485, and Wi-Fi. Designed for ESP32-based microcontrollers and expandable to include BLE, CAN, and other interfaces.
 
-📡 LoRa (long-range wireless)
-🔌 RS-485 (Modbus-style wired)
-🌐 MQTT (cloud communication)
-🔷 BLE (optional extension)
-🟢 CAN (for industrial integration, optional)
+# 📡 System Overview
+The system demonstrates how distributed edge nodes collect and transmit sensor data to a central Gateway, which processes and forwards the data to cloud services via MQTT. The Gateway also receives commands and controls actuators in real-time (e.g., NeoPixels or RS-485 devices).
 
-## Description
+# 🔑 Key Features
+✅ Gateway Node (ESP32):
+LoRa Receiver for wireless sensor data.
 
-The gateway parses, classifies, and forwards data to the cloud (e.g., ThingsBoard) or local networks in real time using FreeRTOS for task management and efficient concurrency.
+Dual MQTT clients:
 
-**Key Features:**
+Local Broker (device data ingestion).
 
-✅ LoRa reception and parsing of remote sensor packets (temperature, humidity)
+Cloud Broker (e.g., ThingsBoard via RS-485).
 
-✅ RS-485 data acquisition from industrial nodes (BMP280, SHT4x, etc.)
+Wi-Fi enabled with dynamic public IP acquisition.
 
-✅ CAN bus interface for motor/sensor communication (via MCP2515 or on-chip CAN)
+NeoPixel control via MQTT command.
 
-✅ MQTT integration (public IP, payload packaging, cloud publishing)
+UART streaming of sensor values to another host (debugging/logging).
 
-✅ BLE expansion support for short-range sensor communication
+✅ Sensor Node (ESP32 or custom MCU):
+LoRa Transmitter sending temperature and humidity readings.
 
-✅ NeoPixel feedback for command status indication
+Can be powered via battery and send periodic updates.
 
-✅ NTP time synchronization for accurate timestamping
+Lightweight JSON message structure.
 
-✅ Built on FreeRTOS (multi-tasked, non-blocking design)
+✅ Actuator Node (ESP32/RS-485):
+Listens to MQTT commands and controls local hardware.
 
-📡 Protocol Summary
-Protocol	Purpose	Status
-LoRa	Long-range wireless	✅ Enabled
-RS-485	Wired industrial data	✅ Enabled
-CAN	Real-time control	⚙️ Optional
-MQTT	Cloud connectivity	✅ Enabled
-BLE	Mobile sensor input	⚙️ Optional
+Parses messages from the Gateway or directly from the cloud.
 
-🔧 Platform
-Board: ESP32-S3-WROOM
-Framework: Arduino + FreeRTOS
-Cloud: ThingsBoard / Custom MQTT Broker
+🧠 How It Works
+🔁 Sensor Node:
+Reads temperature & humidity values from sensor.
 
-⚙️ Actuator Node for IoT Control
-This repository contains firmware for an Actuator Node designed to receive commands via MQTT and act upon them in real time. It can be integrated into a larger system involving LoRa, RS-485, and BLE communication layers.
+Sends data as a LoRa packet to the Gateway.
 
-🛠️ Features
-✅ MQTT command reception and parsing (via cloud)
+# 🔁 Gateway Node:
+Receives LoRa payload.
 
-✅ Command-controlled NeoPixel status LED
+Parses and publishes structured data to MQTT broker.
 
-✅ Support for commands like light on, light off, fan start, etc.
+Sends values over UART and logs via Serial.
 
-✅ Device ID filtering for multi-node control
+Receives MQTT command messages and routes to actuators (e.g., via RS-485 or GPIO).
 
-✅ Future-ready: can be extended to relay control, PWM motors, servo, etc.
+# 🔁 Actuator Node:
+Waits for control messages.
 
-✅ FreeRTOS optional for concurrency and responsiveness
+Parses JSON and executes commands (e.g., turn on light).
+
+⚙️ Getting Started
+📦 Prerequisites
+ESP32 (Gateway)
+
+LoRa modules (SX127x series)
+
+RS-485 transceivers (e.g., MAX485)
+
+MQTT Broker (e.g., Mosquitto or ThingsBoard)
+
+Optional: CAN transceivers or BLE modules
+
+# 📥 Dependencies
+Arduino IDE or PlatformIO
+
+Libraries:
+
+PubSubClient
+
+LoRa
+
+ArduinoJson
+
+WiFi
+
+Adafruit_NeoPixel
+
+🚀 Build & Upload
+Gateway Node:
+
+Clone repo:
+git clone https://github.com/your-username/gateway-node.git
+
+Open in Arduino IDE.
+
+Set board to ESP32.
+
+Upload to your device.
+
+Sensor Node:
+
+Open sensor_node.ino
+
+Configure sensor type and LoRa settings.
+
+Upload to ESP32 or other compatible board.
+
+Actuator Node:
+
+Open actuator_node.ino
+
+Configure GPIO or RS-485 handling logic.
+
+Upload and test command reception.
+
+# 🧪 Testing the System
+Use MQTT.fx or Mosquitto to simulate cloud MQTT commands.
+
+Monitor LoRa communication using Serial logs.
+
+Confirm RS-485 or NeoPixel activation.
+
+Verify data upload to cloud (e.g., ThingsBoard dashboard).
+
+# 🗃 Code Structure
+plaintext
+Copy
+Edit
+gateway-node/
+├── main.cpp
+├── lora_handler.cpp/h
+├── mqtt_handler.cpp/h
+├── uart_logger.cpp/h
+├── neopixel_control.cpp/h
+└── config.h
+🧩 Future Expansion (Optional)
+✅ BLE provisioning for initial Wi-Fi setup.
+
+✅ CAN protocol integration for industrial data.
+
+✅ Thread or Matter protocol for smart home applications.
+
+✅ FreeRTOS implementation for multitasking.
+
+# 🌐 Cloud Integration
+Supports any MQTT 3.1/3.1.1 broker.
+
+Tested with:
+
+ThingsBoard Cloud
+
+AWS IoT Core
+
+Local Mosquitto Broker
+
+# 📞 Command Format Example
+MQTT Topic:
+command/light/control
+
+Payload:
+
+json
+Copy
+Edit
+{
+  "device_id": "temphum",
+  "command": "light on"
+}
