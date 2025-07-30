@@ -48,7 +48,7 @@ LoRa/RS-485 communication
   - Motors
   - Lights
 
-# =>  How It Works
+#  How It Works
  **Gateway Node**
  - Receives LoRa packets.
  - Parses and logs over UART.
