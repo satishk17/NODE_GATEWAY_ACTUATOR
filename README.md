@@ -137,7 +137,7 @@ Define command parsing logic.
 
 Upload to ESP32.
 
-# 🗃 Code Structure
+# Code Structure
 plaintext
 Copy
 Edit
