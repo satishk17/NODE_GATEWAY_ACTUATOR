@@ -1,5 +1,5 @@
 # IoT Gateway, Sensor Node, and Actuator System
-This repository contains firmware and configuration for an IoT system involving a Gateway, Sensor Node, and Actuator Node using LoRa, MQTT, RS-485, and Wi-Fi. Designed for ESP32-based microcontrollers and expandable to include BLE, CAN, and other interfaces.
+This repository contains firmware and configuration for an IoT system involving a Gateway, Sensor Node, and Actuator Node using LoRa, MQTT, RS-485, and Wi-Fi. Designed for ESP32-based microcontrollers and expandable to include BLE, CAN, and RS-232 interfaces.
 
 # 📡 System Overview
 The system demonstrates how distributed edge nodes collect and transmit sensor data to a central Gateway, which processes and forwards the data to cloud services via MQTT. The Gateway also receives commands and controls actuators in real-time (e.g., NeoPixels or RS-485 devices).
