@@ -41,12 +41,12 @@ OLED updates
 LoRa/RS-485 communication
 
 ->  Actuator Node (ESP32-S3 / RS-485)
-    Waits for ESP_NOW or RS-485 command messages.
-    Parses JSON control commands.
-    Controls:
-    Relays
-    Motors
-    Lights
+  - Waits for ESP_NOW or RS-485 command messages.
+  - Parses JSON control commands.
+  - Controls:
+  - Relays
+  - Motors
+  - Lights
 
 # => 🧠 How It Works
 Gateway Node:
