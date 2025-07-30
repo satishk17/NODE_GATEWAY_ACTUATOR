@@ -139,8 +139,8 @@ Upload to ESP32.
 
 ## Code Structure
 
--gateway-node
--Sensor-node
--actuator-node
+- gateway-node
+- Sensor-node
+- actuator-node
 
 
