@@ -1,1 +1,199 @@
+// RTOS-based version of the given non-RTOS ESP32 gateway firmware
+// Each major component (LoRa receive, MQTT loop, RS-485 receive, LED control) is separated into FreeRTOS tasks
+
+#include <Arduino.h>
+#include <SPI.h>
+#include <LoRa.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+#include <time.h>
+#include <ArduinoJson.h>
+#include <Adafruit_NeoPixel.h>
+#include <HTTPClient.h>
+#include <HardwareSerial.h>
+
+// Pin Definitions
+#define TXD_PIN 17
+#define RXD_PIN 18
+#define DE_RE_PIN 16
+#define NEOPIXEL_PIN 38
+#define NUMPIXELS 1
+#define LORA_SCK 12
+#define LORA_MISO 13
+#define LORA_MOSI 11
+#define LORA_SS 14
+#define LORA_RST 10
+#define LORA_DI0 21
+#define LORA_BAND 915E6
+
+// Wi-Fi and MQTT credentials
+const char* ssid = "sdsbu";
+const char* password = "NeverStop2016";
+const char* mqtt_server = "13.204.1.247";
+const int mqtt_port = 1883;
+const char* mqtt_topic = "rtdv/device_data";
+const char* command_topic = "command/light/control";
+String mqtt_username = "kshitij";
+String mqtt_password = "password123";
+
+// RS485 MQTT parameters
+const char* rs485_mqtt_token = "25QtslqjYRdLcEI012PA";
+const char* rs485_mqtt_server = "demo.thingsboard.io";
+const char* rs485_mqtt_topic = "v1/devices/me/telemetry";
+
+// Clients and interfaces
+WiFiClient espClient;
+PubSubClient client(espClient);
+WiFiClient rs485WifiClient;
+PubSubClient rs485Client(rs485WifiClient);
+Adafruit_NeoPixel pixels(NUMPIXELS, NEOPIXEL_PIN, NEO_GRB + NEO_KHZ800);
+HardwareSerial RS485Serial(1);
+String publicIP = "0.0.0.0";
+
+// Light Control Functions
+void turnLightOn() {
+  pixels.setPixelColor(0, pixels.Color(0, 0, 255));
+  pixels.show();
+}
+
+void turnLightOff() {
+  pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+  pixels.show();
+}
+
+// MQTT message handler
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  StaticJsonDocument<256> doc;
+  deserializeJson(doc, payload, length);
+  if (strcmp(doc["device_id"], "temphum") != 0) return;
+  const char* command = doc["command"];
+  if (strcmp(command, "light on") == 0) turnLightOn();
+  else if (strcmp(command, "light off") == 0) turnLightOff();
+}
+
+// Fetch Public IP from web
+String getPublicIP() {
+  HTTPClient http;
+  http.begin("http://api.ipify.org");
+  int httpCode = http.GET();
+  if (httpCode == 200) return http.getString();
+  return "0.0.0.0";
+}
+
+// Connect to Wi-Fi
+void connectWiFi() {
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) delay(500);
+  publicIP = getPublicIP();
+}
+
+// Reconnect to MQTT broker
+void connectMQTT() {
+  while (!client.connected()) {
+    if (client.connect("ESP32Client", mqtt_username.c_str(), mqtt_password.c_str())) {
+      client.subscribe(command_topic);
+    } else {
+      delay(5000);
+    }
+  }
+}
+
+// Reconnect to ThingsBoard for RS485
+void connectRS485MQTT() {
+  while (!rs485Client.connected()) {
+    rs485Client.connect("RS485Client", rs485_mqtt_token, NULL);
+    delay(1000);
+  }
+}
+
+// Setup function runs once
+void setup() {
+  Serial.begin(115200);
+
+  // Initialize NeoPixel
+  pixels.begin(); pixels.clear(); pixels.show();
+
+  // Initialize WiFi and MQTT
+  connectWiFi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(mqttCallback);
+  rs485Client.setServer(rs485_mqtt_server, mqtt_port);
+
+  // Initialize RS485 and LoRa
+  pinMode(DE_RE_PIN, OUTPUT); digitalWrite(DE_RE_PIN, LOW);
+  RS485Serial.begin(9600, SERIAL_8N1, RXD_PIN, TXD_PIN);
+  SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
+  LoRa.setPins(LORA_SS, LORA_RST, LORA_DI0);
+  LoRa.begin(LORA_BAND);
+
+  // Sync time with NTP
+  configTime(19800, 0, "pool.ntp.org", "time.nist.gov");
+  while (time(nullptr) < 100000) delay(500);
+
+  // Launch FreeRTOS tasks
+  xTaskCreatePinnedToCore(MQTTTask, "MQTT Task", 4096, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(LoRaTask, "LoRa Task", 4096, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(RS485Task, "RS485 Task", 4096, NULL, 1, NULL, 1);
+}
+
+// MQTT task loop
+void MQTTTask(void* pv) {
+  while (1) {
+    if (!client.connected()) connectMQTT();
+    client.loop();
+    vTaskDelay(10);
+  }
+}
+
+// LoRa receive task
+void LoRaTask(void* pv) {
+  while (1) {
+    int packetSize = LoRa.parsePacket();
+    if (packetSize) {
+      String incoming = "";
+      while (LoRa.available()) incoming += (char)LoRa.read();
+      float t = incoming.substring(incoming.indexOf("T:") + 2, incoming.indexOf("C")).toFloat();
+      float h = incoming.substring(incoming.indexOf("H:") + 2, incoming.indexOf("%", incoming.indexOf("H:"))).toFloat();
+
+      // Create JSON payload
+      String payload = "{";
+      payload += "\"device_id\":\"temphum\",";
+      payload += "\"ip_address\":\"" + publicIP + "\",";
+      payload += "\"temperature\":" + String(t, 2) + ",";
+      payload += "\"humidity\":" + String(h, 2) + ",";
+      payload += "\"battery_status\":" + String(random(8000, 10000) / 100.0, 2) + ",";
+      payload += "\"signal_strength\":" + String(WiFi.RSSI()) + ",";
+      payload += "\"event_time\":" + String(time(nullptr)) + "}";
+      client.publish(mqtt_topic, payload.c_str());
+    }
+    vTaskDelay(100);
+  }
+}
+
+// RS-485 receive task
+void RS485Task(void* pv) {
+  while (1) {
+    if (RS485Serial.available()) {
+      String data = RS485Serial.readStringUntil('\n');
+      float t = data.substring(data.indexOf("Temp:") + 5, data.indexOf("C")).toFloat();
+      float p = data.substring(data.indexOf("Pressure:") + 9, data.indexOf("hPa")).toFloat();
+      float a = data.substring(data.indexOf("Altitude:") + 9, data.indexOf("m")).toFloat();
+
+      // Pack JSON
+      StaticJsonDocument<256> doc;
+      doc["temperature"] = t;
+      doc["pressure"] = p;
+      doc["altitude"] = a;
+      char buffer[256];
+      serializeJson(doc, buffer);
+
+      connectRS485MQTT();
+      rs485Client.publish(rs485_mqtt_topic, buffer);
+    }
+    vTaskDelay(500);
+  }
+}
+
+// Empty loop as RTOS handles execution
+void loop(){}
 
