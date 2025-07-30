@@ -24,16 +24,16 @@ All devices run under FreeRTOS, leveraging the built-in multitasking support on 
   - RS-485 interaction
 
  ->  Sensor Node (ESP32-S3)
-     Reads data from:
-     BMP280 (Temperature & Pressure)
-     Presence Sensor (PIR or IR)
-     Light/RGB sensors (optional)
-     Displays current status on an I²C OLED.
-     Transmits data over:
-     LoRa
-     ESP-NOW
-     RS-485
-     Battery-efficient periodic transmission
+  - Reads data from:
+  - BMP280 (Temperature & Pressure)
+  - Presence Sensor (PIR or IR)
+  - Light/RGB sensors (optional)
+  - Displays current status on an I²C OLED.
+  - Transmits data over:
+  - LoRa
+  - ESP-NOW
+  - RS-485
+  - Battery-efficient periodic transmission
 
 🧠 Managed with FreeRTOS tasks:
 Sensor polling
