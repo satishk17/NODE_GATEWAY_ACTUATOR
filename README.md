@@ -141,7 +141,7 @@ Upload to ESP32.
 plaintext
 Copy
 Edit
-gateway-node\n
-Sensor-node
-actuator-node
+-gateway-node
+-Sensor-node
+-actuator-node
 
