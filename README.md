@@ -138,9 +138,6 @@ Define command parsing logic.
 Upload to ESP32.
 
 ## Code Structure
-plaintext
-Copy
-Edit
 -gateway-node
 -Sensor-node
 -actuator-node
