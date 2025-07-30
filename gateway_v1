@@ -197,3 +197,199 @@ void RS485Task(void* pv) {
 // Empty loop as RTOS handles execution
 void loop(){}
 
+
+=================================================================================== GATEWAY-2 ==============================================================================
+// HERE some of the tasks are common tasks and some of the protocols are used in gateway-2 are not used gateway 1 users has to take care of pins and tasks 
+
+#include <Arduino.h>
+#include <Wire.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <PubSubClient.h>
+#include <esp_now.h>
+#include <Adafruit_BMP280.h>
+
+// Define I2C, UART and control pins
+#define I2C_SDA 21
+#define I2C_SCL 22
+#define RXD_PIN 16
+#define TXD_PIN 17
+#define DE_RE_PIN 4
+
+// WiFi and MQTT credentials and config
+const char* ssid = "sdsbu";
+const char* password = "NeverStop2016";
+const char* mqtt_server = "13.204.1.247";
+const int mqtt_port = 1883;
+const char* mqtt_topic = "rtdv/device_data";
+String mqtt_username = "kshitij";
+String mqtt_password = "password123";
+
+// MQTT and WiFi clients
+WiFiClient espClient;
+PubSubClient client(espClient);
+String publicIP;
+
+// BMP280 Sensor object
+Adafruit_BMP280 bmp;
+
+// Flags to indicate connection states
+volatile bool wifiConnected = false;
+volatile bool mqttConnected = false;
+
+// Define ESP-NOW structure to receive sensor values
+typedef struct __attribute__((packed)) sensor_data {
+  float lux;
+  int red, green, blue;
+} sensor_data;
+
+sensor_data incomingData;
+
+// RS485 Serial instance on UART1
+HardwareSerial RS485Serial(1);
+
+// FreeRTOS Task handles
+TaskHandle_t wifiTaskHandle;
+TaskHandle_t mqttTaskHandle;
+TaskHandle_t mqttSendTaskHandle;
+TaskHandle_t espNowTaskHandle;
+
+// Function to retrieve public IP address
+String getPublicIP() {
+  HTTPClient http;
+  http.begin("http://api.ipify.org");
+  int httpCode = http.GET();
+  String ip;
+  if (httpCode == 200) ip = http.getString();
+  http.end();
+  return ip;
+}
+
+// Task: Connect to WiFi and fetch public IP
+void WiFiConnectTask(void* pvParameters) {
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+  }
+  Serial.println("WiFi Connected");
+  publicIP = getPublicIP();
+  wifiConnected = true;
+
+  // Sync NTP time
+  configTime(19800, 0, "pool.ntp.org", "time.nist.gov");
+  time_t now = time(nullptr);
+  while (now < 100000) {
+    vTaskDelay(500 / portTICK_PERIOD_MS);
+    now = time(nullptr);
+  }
+  vTaskDelete(NULL);
+}
+
+// Task: Connect to MQTT Broker
+void MQTTConnectTask(void* pvParameters) {
+  while (!wifiConnected) vTaskDelay(500 / portTICK_PERIOD_MS);
+  client.setServer(mqtt_server, mqtt_port);
+  while (!client.connected()) {
+    if (client.connect("ESP32Client", mqtt_username.c_str(), mqtt_password.c_str())) {
+      mqttConnected = true;
+      Serial.println("MQTT connected");
+    } else {
+      Serial.println("Retrying MQTT connection in 5s...");
+      vTaskDelay(5000 / portTICK_PERIOD_MS);
+    }
+  }
+  vTaskDelete(NULL);
+}
+
+// Task: Read sensor data and publish to MQTT
+void MQTTSendTask(void* pvParameters) {
+  while (!mqttConnected) vTaskDelay(1000 / portTICK_PERIOD_MS);
+  for (;;) {
+    float temperature = bmp.readTemperature();
+    float pressure = bmp.readPressure() / 100.0;
+    float altitude = bmp.readAltitude(1013.25);
+
+    // Create JSON payload
+    String payload = "{";
+    payload += "\"device_id\":\"demo\",";
+    payload += "\"ip_address\":\"" + publicIP + "\",";
+    payload += "\"temperature\":" + String(temperature) + ",";
+    payload += "\"pressure\":" + String(pressure) + ",";
+    payload += "\"altitude\":" + String(altitude) + ",";
+    payload += "\"lux\":" + String(incomingData.lux) + ",";
+    payload += "\"red\":" + String(incomingData.red) + ",";
+    payload += "\"green\":" + String(incomingData.green) + ",";
+    payload += "\"blue\":" + String(incomingData.blue) + ",";
+    payload += "\"battery_status\":" + String(random(8000, 10000) / 100.0, 2) + ",";
+    payload += "\"signal_strength\":" + String(WiFi.RSSI()) + ",";
+    payload += "\"event_time\":" + String(time(nullptr));
+    payload += "}";
+
+    client.publish(mqtt_topic, payload.c_str());
+    vTaskDelay(600000 / portTICK_PERIOD_MS); // Delay 10 minutes
+  }
+}
+
+// Callback for receiving ESP-NOW data
+void OnDataRecv(const esp_now_recv_info_t* mac, const uint8_t* data, int len) {
+  memcpy(&incomingData, data, sizeof(incomingData));
+
+  // Send received data over RS485
+  digitalWrite(DE_RE_PIN, HIGH);
+  delay(10);
+  RS485Serial.print("Lux: "); RS485Serial.println(incomingData.lux);
+  RS485Serial.flush();
+  // RS485Serial.print("R: "); RS485Serial.print(incomingData.red);
+  // RS485Serial.print(" G: "); RS485Serial.print(incomingData.green);
+  // RS485Serial.print(" B: "); RS485Serial.println(incomingData.blue);
+  digitalWrite(DE_RE_PIN, LOW);
+}
+
+// Task: Initialize ESP-NOW
+void ESPNowTask(void* pvParameters) {
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("ESP-NOW init failed");
+    vTaskDelete(NULL);
+  }
+  esp_now_register_recv_cb(OnDataRecv);
+  vTaskDelete(NULL);
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  Serial.println("Module Waking up");
+
+  // Initialize I2C and BMP280 sensor
+  Wire.begin(I2C_SDA, I2C_SCL);
+  if (!bmp.begin(0x77) && !bmp.begin(0x76)) {
+    Serial.println("BMP280 sensor not found. Check wiring!");
+    while (1);
+  }
+  Serial.println("Sensor initialization is done");
+
+  // Configure BMP280 sampling settings
+  bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,
+                  Adafruit_BMP280::SAMPLING_X2,
+                  Adafruit_BMP280::SAMPLING_X16,
+                  Adafruit_BMP280::FILTER_X16,
+                  Adafruit_BMP280::STANDBY_MS_500);
+
+  // Initialize RS485
+  RS485Serial.begin(9600, SERIAL_8N1, RXD_PIN, TXD_PIN);
+  pinMode(DE_RE_PIN, OUTPUT);
+  digitalWrite(DE_RE_PIN, LOW);
+
+  // Launch all tasks
+  xTaskCreate(WiFiConnectTask, "WiFiTask", 4096, NULL, 1, &wifiTaskHandle);
+  xTaskCreate(MQTTConnectTask, "MQTTTask", 4096, NULL, 1, &mqttTaskHandle);
+  xTaskCreate(MQTTSendTask, "MQTTSend", 4096, NULL, 1, &mqttSendTaskHandle);
+  xTaskCreate(ESPNowTask, "ESPNowInit", 4096, NULL, 1, &espNowTaskHandle);
+}
+
+void loop() {
+  // Required to maintain MQTT connection
+  client.loop();
+}
