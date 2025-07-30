@@ -1,0 +1,478 @@
+======================================================================== NODE-1 =========================================================================================
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#include <Wire.h>
+#include <SPI.h>
+#include <LoRa.h>
+#include <U8g2lib.h>
+#include <Adafruit_HTU21DF.h>
+
+// === Pins ===
+#define LORA_SCK 12
+#define LORA_MISO 13
+#define LORA_MOSI 11
+#define LORA_SS 14
+#define LORA_RST 10
+#define LORA_DI0 21
+#define LORA_BAND 915E6
+
+#define OLED_SCL 9
+#define OLED_SDA 8
+
+// === I2C OLED and Sensor Initialization ===
+U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE, OLED_SCL, OLED_SDA);
+Adafruit_HTU21DF htu;
+
+// === Data Struct for Sensor Readings ===
+struct SensorData {
+  float temp;
+  float hum;
+};
+
+// === Queue Handle for Sharing Data Between Tasks ===
+QueueHandle_t sensorDataQueue;
+
+// === Task to Read Temperature and Humidity Sensor ===
+void SensorTask(void *pvParameters) {
+  SensorData data;
+
+  while (1) {
+    data.temp = htu.readTemperature();
+    data.hum = htu.readHumidity();
+
+    // Send sensor data to queue
+    if (xQueueSend(sensorDataQueue, &data, portMAX_DELAY) != pdPASS) {
+      Serial.println("Queue Full");
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(2000));  // Read every 2 seconds
+  }
+}
+
+// === Task to Display Sensor Data on OLED ===
+void DisplayTask(void *pvParameters) {
+  SensorData data;
+
+  while (1) {
+    if (xQueueReceive(sensorDataQueue, &data, portMAX_DELAY) == pdPASS) {
+      display.clearBuffer();
+      display.setFont(u8g2_font_ncenB08_tr);
+
+      display.setCursor(0, 20);
+      display.print("Temp: ");
+      display.print(data.temp, 2);
+      display.print(" C");
+
+      display.setCursor(0, 40);
+      display.print("Humidity: ");
+      display.print(data.hum, 2);
+      display.print(" %");
+
+      display.sendBuffer();
+    }
+  }
+}
+
+// === Task to Send Data via LoRa ===
+void LoRaTask(void *pvParameters) {
+  SensorData data;
+
+  while (1) {
+    if (xQueuePeek(sensorDataQueue, &data, portMAX_DELAY) == pdPASS) {
+      String msg = "T:" + String(data.temp, 2) + "C,H:" + String(data.hum, 2) + "%";
+      LoRa.beginPacket();
+      LoRa.print(msg);
+      LoRa.endPacket();
+
+      Serial.println("Sent via LoRa: " + msg);
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(600000));  // Send every 10 minutes
+  }
+}
+
+// === Setup Function ===
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  Wire.begin(OLED_SDA, OLED_SCL);  // Initialize I2C for OLED and Sensor
+
+  // Init OLED Display
+  display.begin();
+  display.clearBuffer();
+  display.setFont(u8g2_font_ncenB08_tr);
+  display.drawStr(0, 20, "Waking up...");
+  display.sendBuffer();
+
+  // Init HTU21DF Sensor
+  if (!htu.begin()) {
+    Serial.println("Sensor not found!");
+    display.clearBuffer();
+    display.drawStr(0, 20, "Sensor Not Found");
+    display.sendBuffer();
+    while (1) vTaskDelay(portMAX_DELAY);  // Halt if sensor not found
+  }
+
+  // Init LoRa Communication
+  SPI.begin(LORA_SCK, LORA_MISO, LORA_MOSI, LORA_SS);
+  LoRa.setPins(LORA_SS, LORA_RST, LORA_DI0);
+  if (!LoRa.begin(LORA_BAND)) {
+    Serial.println("LoRa init failed!");
+    display.clearBuffer();
+    display.drawStr(0, 20, "LoRa Failed");
+    display.sendBuffer();
+    while (1) vTaskDelay(portMAX_DELAY);  // Halt if LoRa init fails
+  }
+
+  // Create Queue to Store Sensor Data
+  sensorDataQueue = xQueueCreate(1, sizeof(SensorData));
+  if (sensorDataQueue == NULL) {
+    Serial.println("Queue creation failed");
+    while (1);
+  }
+
+  // Create Tasks
+  xTaskCreate(SensorTask, "Sensor", 2048, NULL, 2, NULL);
+  xTaskCreate(DisplayTask, "Display", 2048, NULL, 1, NULL);
+  xTaskCreate(LoRaTask, "LoRa", 2048, NULL, 3, NULL);
+}
+
+void loop() {
+  // Empty — FreeRTOS handles everything
+}
+
+======================================================================== NODE-2 =========================================================================================
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#include <Wire.h>
+#include <BH1750.h>
+#include <U8g2lib.h>
+#include <Adafruit_TCS34725.h>
+#include <esp_now.h>
+#include <WiFi.h>
+
+// ==== I2C Pin Configuration ====
+#define I2C_SDA 8
+#define I2C_SCL 9
+
+// ==== OLED Display Initialization ====
+U8G2_SH1106_128X64_NONAME_F_HW_I2C display(U8G2_R0, I2C_SCL, I2C_SDA, U8X8_PIN_NONE);
+
+// ==== Light and Color Sensors ====
+BH1750 lightMeter;  // For measuring light intensity in lux
+Adafruit_TCS34725 tcs(TCS34725_INTEGRATIONTIME_50MS, TCS34725_GAIN_4X);  // For detecting RGB color
+
+// ==== Named Color Table for Matching RGB to Named Colors ====
+typedef struct {
+  const char* name;
+  uint8_t r, g, b;
+} NamedColor;
+
+NamedColor colorTable[] = {
+  { "Red", 255, 0, 0 },
+  { "Green", 0, 255, 0 },
+  { "Blue", 0, 0, 255 },
+  { "Yellow", 255, 255, 0 },
+  { "Cyan", 0, 255, 255 },
+  { "Magenta", 255, 0, 255 },
+  { "White", 255, 255, 255 },
+  { "Black", 0, 0, 0 },
+  { "Orange", 255, 165, 0 },
+  { "Pink", 255, 192, 203 },
+  { "Gray", 128, 128, 128 },
+  { "Brown", 139, 69, 19 },
+  { "Violet", 238, 130, 238 },
+  { "Indigo", 75, 0, 130 },
+  { "Gold", 255, 215, 0 },
+  { "Beige", 245, 245, 220 },
+  { "Maroon", 128, 0, 0 },
+  { "Olive", 128, 128, 0 },
+  { "Teal", 0, 128, 128 },
+  { "Navy", 0, 0, 128 }
+};
+
+const int colorCount = sizeof(colorTable) / sizeof(colorTable[0]);
+
+// ==== Function to Get Closest Named Color ====
+String getClosestColorName(uint8_t r, uint8_t g, uint8_t b) {
+  long minDist = LONG_MAX;
+  const char *best = "Unknown";
+  for (int i = 0; i < colorCount; ++i) {
+    int dr = r - colorTable[i].r;
+    int dg = g - colorTable[i].g;
+    int db = b - colorTable[i].b;
+    long dist = dr * dr + dg * dg + db * db;
+    if (dist < minDist) {
+      minDist = dist;
+      best = colorTable[i].name;
+    }
+  }
+  return String(best);
+}
+
+// ==== Sensor Data Structure Shared Across Tasks ====
+typedef struct {
+  float lux;
+  uint8_t red, green, blue;
+  char colorName[20];
+} SensorData;
+
+QueueHandle_t xQueueSensorData;
+
+// ==== MAC Address of the ESP-NOW Peer (Receiver) ====
+uint8_t peerMac[] = { 0xD8, 0x3B, 0xDA, 0x42, 0xFA, 0x34 };
+
+// ==== Task to Read Sensor Values ====
+void sensorTask(void *pvParameters) {
+  SensorData data;
+
+  for (;;) {
+    // Read lux from BH1750
+    data.lux = lightMeter.readLightLevel();
+
+    // Read raw RGB values from TCS34725
+    uint16_t r, g, b, c;
+    tcs.getRawData(&r, &g, &b, &c);
+    if (c == 0) c = 1; // Prevent division by zero
+
+    // Normalize RGB values to 0–255 range
+    data.red   = (r * 255) / c;
+    data.green = (g * 255) / c;
+    data.blue  = (b * 255) / c;
+
+    // Get the closest matching color name
+    String color = getClosestColorName(data.red, data.green, data.blue);
+    strncpy(data.colorName, color.c_str(), sizeof(data.colorName));
+    data.colorName[sizeof(data.colorName) - 1] = '\0'; // Ensure null termination
+
+    // Send data to queue
+    xQueueSend(xQueueSensorData, &data, portMAX_DELAY);
+    vTaskDelay(pdMS_TO_TICKS(2000)); // Wait 2 seconds
+  }
+}
+
+// ==== Task to Display Sensor Data on OLED ====
+void displayTask(void *pvParameters) {
+  SensorData data;
+
+  for (;;) {
+    if (xQueueReceive(xQueueSensorData, &data, portMAX_DELAY)) {
+      display.clearBuffer();
+      display.setCursor(0, 15);
+      display.printf("Lux: %.1f lx", data.lux);
+      display.setCursor(0, 35);
+      display.printf("Color: %s", data.colorName);
+      display.setCursor(0, 55);
+      display.printf("RGB: %d %d %d", data.red, data.green, data.blue);
+      display.sendBuffer();
+    }
+  }
+}
+
+// ==== Callback After ESP-NOW Transmission ====
+void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
+  Serial.print("ESP-NOW Send Status: ");
+  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Success" : "Fail");
+}
+
+// ==== Task to Transmit Sensor Data Over ESP-NOW ====
+void espNowTask(void *pvParameters) {
+  SensorData data;
+
+  for (;;) {
+    if (xQueueReceive(xQueueSensorData, &data, portMAX_DELAY)) {
+      // Send data to peer device via ESP-NOW
+      esp_err_t result = esp_now_send(peerMac, (uint8_t *)&data, sizeof(data));
+
+      if (result == ESP_OK) {
+        Serial.printf("✅ ESP-NOW Sent -> Lux: %.1f, RGB: %d %d %d, Color: %s\n",
+                      data.lux, data.red, data.green, data.blue, data.colorName);
+      } else {
+        Serial.printf("❌ ESP-NOW Send Failed: %s\n", esp_err_to_name(result));
+      }
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(10000));  // Wait 10 seconds between sends
+  }
+}
+
+// ==== Setup Function ====
+void setup() {
+  Serial.begin(115200);
+  delay(100);
+  Wire.begin(I2C_SDA, I2C_SCL);
+
+  // Initialize OLED
+  display.begin();
+  display.clearBuffer();
+  display.setFont(u8g2_font_ncenB08_tr);
+  display.drawStr(0, 20, "Waking up...");
+  display.sendBuffer();
+
+  // Initialize BH1750
+  if (!lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE)) {
+    Serial.println("BH1750 not found!");
+  }
+
+  // Initialize TCS34725
+  if (!tcs.begin()) {
+    Serial.println("TCS34725 not found!");
+  }
+
+  // Initialize ESP-NOW
+  WiFi.mode(WIFI_STA);
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("ESP-NOW Init Failed");
+    return;
+  }
+
+  // Register callback for send status
+  esp_now_register_send_cb(onDataSent);
+
+  // Add peer to communicate with
+  esp_now_peer_info_t peerInfo = {};
+  memcpy(peerInfo.peer_addr, peerMac, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add ESP-NOW peer");
+    return;
+  }
+
+  // Create queue for data sharing between tasks
+  xQueueSensorData = xQueueCreate(5, sizeof(SensorData));
+
+  // Create sensor, display, and ESP-NOW tasks
+  xTaskCreatePinnedToCore(sensorTask, "Sensor Task", 2048, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(displayTask, "Display Task", 4096, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(espNowTask, "ESP-NOW Task", 4096, NULL, 2, NULL, 1);
+
+  Serial.println("✅ Setup Complete");
+}
+
+// ==== Main Loop (Not Used — FreeRTOS Handles Execution) ====
+void loop() {}
+
+
+======================================================================== NODE-3 =========================================================================================
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+#include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
+// OLED Configuration
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define OLED_RESET    -1
+#define SCREEN_ADDRESS 0x3C
+#define SDA_PIN 7
+#define SCL_PIN 8
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+
+// mmWave UART Configuration
+#define RADAR_RX 21
+#define RADAR_TX 20
+HardwareSerial mySerial(1);
+
+// Shared data between tasks
+String lastRange = "";
+String lastPresence = "";
+
+// Mutex for shared access
+SemaphoreHandle_t dataMutex;
+
+// OLED Display Task
+void oledTask(void *parameter) {
+  for (;;) {
+    vTaskDelay(pdMS_TO_TICKS(200)); // Refresh every 200ms
+
+    // Lock mutex to safely access shared variables
+    if (xSemaphoreTake(dataMutex, portMAX_DELAY)) {
+      if (lastRange.length() > 0 && lastPresence.length() > 0) {
+        display.clearDisplay();
+        display.setTextSize(2);
+        display.setCursor(15, 0);
+        display.println(lastPresence);
+
+        display.setCursor(0, 30);
+        display.print("Range: ");
+        display.print(lastRange);
+        display.println(" cm");
+        display.display();
+
+        Serial.print("Presence: ");
+        Serial.print(lastPresence);
+        Serial.print("   Range: ");
+        Serial.print(lastRange);
+        Serial.println(" cm");
+
+        lastRange = "";
+        lastPresence = "";
+      }
+      xSemaphoreGive(dataMutex);
+    }
+  }
+}
+
+// Radar UART Task
+void radarTask(void *parameter) {
+  String radarLine = "";
+
+  for (;;) {
+    while (mySerial.available()) {
+      char c = mySerial.read();
+      if (c == '\n' || c == '\r') {
+        radarLine.trim();
+
+        // Lock the mutex to update shared data
+        if (xSemaphoreTake(dataMutex, portMAX_DELAY)) {
+          if (radarLine.startsWith("Range")) {
+            lastRange = radarLine.substring(6);
+          } else if (radarLine == "ON" || radarLine == "OFF") {
+            lastPresence = (radarLine == "ON") ? "Presence" : "No Presence";
+          }
+          xSemaphoreGive(dataMutex);
+        }
+        radarLine = "";
+      } else {
+        radarLine += c;
+      }
+    }
+    vTaskDelay(pdMS_TO_TICKS(10)); // Yield to other tasks
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  mySerial.begin(115200, SERIAL_8N1, RADAR_RX, RADAR_TX);
+
+  // Initialize OLED display
+  Wire.begin(SDA_PIN, SCL_PIN);
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    Serial.println(F("SSD1306 allocation failed"));
+    while (1);
+  }
+
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_WHITE);
+  display.setCursor(0, 0);
+  display.println("mmWave Sensor Ready");
+  display.display();
+  delay(1000);
+
+  // Create a mutex for shared variable protection
+  dataMutex = xSemaphoreCreateMutex();
+
+  // Create tasks
+  xTaskCreatePinnedToCore(radarTask, "Radar Task", 4096, NULL, 1, NULL, 1);
+  xTaskCreatePinnedToCore(oledTask, "OLED Task", 4096, NULL, 1, NULL, 1);
+}
+
+void loop() {
+  // Nothing needed here, all logic in FreeRTOS tasks
+}
