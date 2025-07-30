@@ -108,8 +108,8 @@ git clone https://github.com/your-username/gateway-node.git
 Open in Arduino IDE.
 
 Select board: ESP32-S3 or ESP32-C6.
-Configure:
-Check pin numbers and wifi credentials
+- Configure:
+- Check pin numbers and wifi credentials
 
 ## Code Structure
 
