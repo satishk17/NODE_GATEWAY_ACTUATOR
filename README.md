@@ -69,15 +69,11 @@ Arduino IDE or PlatformIO
 
 Libraries:
 
-PubSubClient
-
-LoRa
-
-ArduinoJson
-
-WiFi
-
-Adafruit_NeoPixel
+-PubSubClient
+-LoRa
+-ArduinoJson
+-WiFi
+-Adafruit_NeoPixel
 
 🚀 Build & Upload
 Gateway Node:
