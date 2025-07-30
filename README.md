@@ -82,20 +82,20 @@ Prerequisites
 
 # 📥 Dependencies
 Install these Arduino libraries via Library Manager:
-PubSubClient
-LoRa
-ArduinoJson
-WiFi
-Adafruit_BMP280
-Adafruit_GFX
-Adafruit_SSD1306
-Adafruit_NeoPixel
-esp_now
-BH1750
-Adafruit_TCS34725
-SPI
-U8g2lib
-Adafruit_HTU21DF
+- PubSubClient
+- LoRa
+- ArduinoJson
+- WiFi
+- Adafruit_BMP280
+- Adafruit_GFX
+- Adafruit_SSD1306
+- Adafruit_NeoPixel
+- esp_now
+- BH1750
+- Adafruit_TCS34725
+- SPI
+- U8g2lib
+- Adafruit_HTU21DF
 
 (Optional: ESP-NOW / Modbus libraries for advanced protocols)
 
