@@ -49,19 +49,19 @@ LoRa/RS-485 communication
   - Lights
 
 # =>  How It Works
-Gateway Node:
+**Gateway Node**
  Receives LoRa packets.
  Parses and logs over UART.
  Publishes data to cloud via MQTT.
  Listens for MQTT commands and dispatches to actuators (via RS-485 or GPIO).
 
-Sensor Node:
+**Sensor Node**
 Periodically reads sensors: BMP280, presence sensor, lux/RGB.
 Displays values on OLED.
 Sends data using LoRa, ESP-NOW, or RS-485.
 Operates in FreeRTOS tasks for low-latency processing.
 
-Actuator Node:
+**Actuator Node**
 Listens for control messages from Gateway.
 Parses JSON payload.
 Triggers GPIO or RS-485-based actions.
