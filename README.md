@@ -49,7 +49,7 @@ LoRa/RS-485 communication
   - Lights
 
 # =>  How It Works
-- **Gateway Node**
+ **Gateway Node**
  - Receives LoRa packets.
  - Parses and logs over UART.
  - Publishes data to cloud via MQTT.
