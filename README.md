@@ -96,6 +96,8 @@ Install these Arduino libraries via Library Manager:
 - SPI
 - U8g2lib
 - Adafruit_HTU21DF
+- HardwareSerial
+- HTTPClient
 
 (Optional: ESP-NOW / Modbus libraries for advanced protocols)
 
