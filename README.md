@@ -11,7 +11,7 @@ This repository contains firmware and configuration for a complete FreeRTOS-base
 All devices run under FreeRTOS, leveraging the built-in multitasking support on ESP32 platforms to handle concurrent tasks such as communication, sensor reading, display updates, and actuation.
 
 # Key Features
-  ->  Gateway Node (ESP32-S3 / ESP32-C6)
+  =>  Gateway Node (ESP32-S3 / ESP32-C6)
   - Receives LoRa packets from Sensor Nodes.
   - Publishes JSON data to MQTT broker over Wi-Fi.
   - Controls NeoPixel or toggles sensors via MQTT command.
@@ -23,7 +23,7 @@ All devices run under FreeRTOS, leveraging the built-in multitasking support on 
   - MQTT publish/subscribe
   - RS-485 interaction
 
- ->  Sensor Node (ESP32-S3)
+ =>  Sensor Node (ESP32-S3)
   - Reads data from:
   - BMP280 (Temperature & Pressure)
   - Presence Sensor (PIR or IR)
@@ -40,7 +40,7 @@ Sensor polling
 OLED updates
 LoRa/RS-485 communication
 
-->  Actuator Node (ESP32-S3 / RS-485)
+=>  Actuator Node (ESP32-S3 / RS-485)
   - Waits for ESP_NOW or RS-485 command messages.
   - Parses JSON control commands.
   - Controls:
