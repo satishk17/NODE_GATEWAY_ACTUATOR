@@ -113,15 +113,13 @@ Select board: ESP32-S3 or ESP32-C6.
 - Configure:
 - Check pin numbers and wifi credentials
 
-# 👨‍💻 Author
-- SATISH KATTI
-- Embedded Systems & IoT Developer
-- [GitHub](https://github.com/satishk17) | [LinkedIn](https://www.linkedin.com/in/satish-katti-576150241/)
-
 ## Code Structure
 
 - gateway-node
 - Sensor-node
 - actuator-node
 
-
+# 👨‍💻 Author
+- SATISH KATTI
+- Embedded Systems & IoT Developer
+- [GitHub](https://github.com/satishk17) | [LinkedIn](https://www.linkedin.com/in/satish-katti-576150241/)
